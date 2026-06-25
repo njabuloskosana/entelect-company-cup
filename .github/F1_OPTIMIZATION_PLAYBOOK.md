@@ -31,6 +31,8 @@ Safety policy:
 
 - Car can accelerate only on straights, up to target speed for that straight segment.
 - Car can brake only on straights when preparing to enter a corner.
+- No accelerating in corners. The speed at corner entry must be maintained for the full corner segment.
+- If a corner segment is immediately followed by another corner segment, speed must remain unchanged across those consecutive corners.
 - No acceleration or deceleration is applied in limp mode.
 
 ## Car Modes
@@ -162,6 +164,8 @@ Any proposed strategy must satisfy all:
 - Accelerate only on straights.
 - Brake only on straights before corners.
 - Maintain constant speed in corners.
+- No accelerating in corners; corner-entry speed must be the speed used throughout each corner.
+- Across consecutive corner segments, corner speed cannot change.
 - In limp mode, no acceleration or deceleration.
 - Pit actions required to recover from limp mode.
 - Include pit time and penalties in total race time.
