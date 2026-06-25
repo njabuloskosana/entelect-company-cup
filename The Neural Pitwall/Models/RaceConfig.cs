@@ -1,3 +1,5 @@
+using The_Neural_Pitwall;
+
 namespace The_Neural_Pitwall.Models;
 
 public sealed class RaceConfig
@@ -13,11 +15,12 @@ public sealed class RaceConfig
     {
         var tyres = TyreCatalog.FromDto(dto.Tyres, dto.AvailableSets);
         var weather = WeatherCatalog.FromDto(dto.Weather);
-        var track = TrackManager.FromDto(dto.Track, tyres, weather);
+        var car = CarProperties.FromDto(dto.Car);
+        var track = TrackManager.FromDto(dto.Track, tyres, weather, car, dto.Race.StartingWeatherConditionId);
 
         return new RaceConfig
         {
-            Car = CarProperties.FromDto(dto.Car),
+            Car = car,
             Race = RaceProperties.FromDto(dto.Race),
             Track = track,
             Tyres = tyres,
@@ -119,6 +122,15 @@ public sealed class TyreCompound
     public double LightRainDegradation { get; init; }
     public double HeavyRainDegradation { get; init; }
 
+    public double GetFrictionMultiplier(string weatherCondition) =>
+        weatherCondition.ToLowerInvariant() switch
+        {
+            "cold"        => ColdFrictionMultiplier,
+            "light_rain"  => LightRainFrictionMultiplier,
+            "heavy_rain"  => HeavyRainFrictionMultiplier,
+            _             => DryFrictionMultiplier
+        };
+
     public static TyreCompound FromDto(string name, TyreCompoundDto dto) => new()
     {
         Name = name,
@@ -195,7 +207,7 @@ public sealed class TrackManager
     public Dictionary<int, TrackSegment> ById { get; init; } = new();
     public IReadOnlyList<TrackSegment> Corners { get; init; } = [];
 
-    public static TrackManager FromDto(TrackDto dto, TyreCatalog tyres, WeatherCatalog weather)
+    public static TrackManager FromDto(TrackDto dto, TyreCatalog tyres, WeatherCatalog weather, CarProperties car, int startingWeatherConditionId = 0)
     {
         var segments = dto.Segments
             .Select(TrackSegment.FromDto)
@@ -216,16 +228,27 @@ public sealed class TrackManager
             next = segment;
         }
 
-        var initialWeather = weather.OrderedConditions.FirstOrDefault();
+        // Wire each segment's NextCorner for O(1) look-ahead during braking-point passes.
+        TrackSegment? nextCorner = null;
+        for (var i = segments.Length - 1; i >= 0; i--)
+        {
+            if (segments[i].IsCorner)
+                nextCorner = segments[i];
+            segments[i].NextCorner = nextCorner;
+        }
+
+        // Resolve the starting weather condition to pick the right tyre friction multiplier.
+        weather.ById.TryGetValue(startingWeatherConditionId, out var startingWeather);
+        var weatherCondition = startingWeather?.Condition ?? "dry";
         var initialTyre = tyres.ByName.Values.FirstOrDefault();
-        var cornerTyreFriction = initialTyre is null ? 1d : initialTyre.BaseFriction * initialTyre.DryFrictionMultiplier;
+        var tyreFriction = initialTyre is null
+            ? 1d
+            : Formulas.TyreFriction(initialTyre.BaseFriction, 0, initialTyre.GetFrictionMultiplier(weatherCondition));
 
         foreach (var segment in segments)
         {
             if (segment.IsCorner)
-            {
-                segment.MaxCornerSpeedMps = CalculateCornerLimit(segment.RadiusM ?? 0, cornerTyreFriction);
-            }
+                segment.MaxCornerSpeedMps = Formulas.MaxCornerSpeed(segment.RadiusM ?? 0, tyreFriction, car.CrawlConstantMps);
         }
 
         return new TrackManager
@@ -242,16 +265,20 @@ public sealed class TrackManager
     public TrackSegment? GetPreviousSegment(int currentId)
         => ById.TryGetValue(currentId, out var segment) ? segment.Previous : null;
 
-    private static double CalculateCornerLimit(double radiusM, double friction)
+    /// <summary>
+    /// Distance (m) required to decelerate from <paramref name="fromSpeedMps"/> to
+    /// <paramref name="toSpeedMps"/> under constant braking of <paramref name="brakeMSe2"/>.
+    /// Returns 0 when no braking is needed.
+    /// Uses kinematics: s = (u² - v²) / (2a)
+    /// </summary>
+    public static double GetBrakingDistanceM(double fromSpeedMps, double toSpeedMps, double brakeMSe2)
     {
-        if (radiusM <= 0 || friction <= 0)
-        {
+        if (fromSpeedMps <= toSpeedMps || brakeMSe2 <= 0)
             return 0;
-        }
 
-        const double gravity = 9.81;
-        return Math.Sqrt(radiusM * gravity * friction);
+        return (fromSpeedMps * fromSpeedMps - toSpeedMps * toSpeedMps) / (2 * brakeMSe2);
     }
+
 }
 
 public sealed class TrackSegment
@@ -264,6 +291,7 @@ public sealed class TrackSegment
     public double? MaxCornerSpeedMps { get; set; }
     public TrackSegment? Next { get; set; }
     public TrackSegment? Previous { get; set; }
+    public TrackSegment? NextCorner { get; set; }
 
     public static TrackSegment FromDto(TrackSegmentDto dto) => new()
     {

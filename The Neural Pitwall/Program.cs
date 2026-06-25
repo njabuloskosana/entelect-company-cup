@@ -18,6 +18,7 @@ var config = RaceConfig.FromDto(dto);
 var carState = CarState.CreateInitial(config.Car, config.Tyres.ByName["Soft"]);
 var actionBuffer = new ActionBuffer();
 
+/*
 Console.WriteLine("=== Race Config Loaded ===");
 Console.WriteLine();
 
@@ -86,3 +87,37 @@ Console.WriteLine($"  Elapsed race time: {carState.ElapsedRaceTimeS} s");
 Console.WriteLine();
 
 Console.WriteLine($"Action buffer ready: {actionBuffer.Actions.Count} actions");
+*/
+// Build submission
+var initialTyreSet = config.AvailableSets.Count > 0 ? config.AvailableSets[0] : null;
+var submission = new RaceSubmission
+{
+    InitialTyreId = initialTyreSet is not null && initialTyreSet.Ids.Count > 0 ? initialTyreSet.Ids[0] : 1,
+    Laps = [.. Enumerable.Range(1, config.Race.Laps).Select(lapNumber => new LapSubmission
+    {
+        Lap = lapNumber,
+        Segments = [.. config.Track.Segments.Select(segment => new SegmentSubmission
+        {
+            Id = segment.Id,
+            Type = segment.Type,
+            TargetMps = segment.IsCorner ? null : config.Car.MaxSpeedMps,
+            BrakeStartMBeforeNext = segment.IsCorner ? null
+                : (segment.NextCorner is not null
+                    ? TrackManager.GetBrakingDistanceM(config.Car.MaxSpeedMps, segment.NextCorner.MaxCornerSpeedMps ?? 0, config.Car.BrakeMSe2)
+                    : 0)
+        })],
+        Pit = new PitSubmission { Enter = false }
+    })]
+};
+
+var outputDir = Path.Combine(AppContext.BaseDirectory, "Output");
+Directory.CreateDirectory(outputDir);
+var outputPath = Path.Combine(outputDir, "output.txt");
+
+var outputJson = JsonSerializer.Serialize(submission, new JsonSerializerOptions
+{
+    WriteIndented = true
+});
+
+await File.WriteAllTextAsync(outputPath, outputJson);
+Console.WriteLine($"Submission written to: {outputPath}");
