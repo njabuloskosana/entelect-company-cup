@@ -1,5 +1,6 @@
 using System.Text.Json;
 using The_Neural_Pitwall.Models;
+using The_Neural_Pitwall.Strategies;
 
 var inputPath = Path.Combine(AppContext.BaseDirectory, "Input", "input.json");
 var json = await File.ReadAllTextAsync(inputPath);
@@ -15,8 +16,10 @@ if (dto is null)
 }
 
 var config = RaceConfig.FromDto(dto);
-var carState = CarState.CreateInitial(config.Car, config.Tyres.ByName["Soft"]);
+var selectedCompound = config.Tyres.ByName["Soft"];
+var carState = CarState.CreateInitial(config.Car, selectedCompound);
 var actionBuffer = new ActionBuffer();
+var strategy = new MaximizingCornerSpeed();
 
 Console.WriteLine("=== Race Config Loaded ===");
 Console.WriteLine();
@@ -86,3 +89,15 @@ Console.WriteLine($"  Elapsed race time: {carState.ElapsedRaceTimeS} s");
 Console.WriteLine();
 
 Console.WriteLine($"Action buffer ready: {actionBuffer.Actions.Count} actions");
+Console.WriteLine();
+
+var strategyResults = strategy.Execute(carState, config, selectedCompound);
+
+Console.WriteLine("=== Maximizing Corner Speed Strategy Output ===");
+foreach (var result in strategyResults)
+{
+    Console.WriteLine(
+        $"Lap {result.Lap}, Segment {result.SegmentId} ({result.SegmentType}), Weather: {result.WeatherCondition}, " +
+        $"Target speed: {result.TargetSpeedMps:0.00} m/s, Braking distance: {result.BrakingDistanceM:0.00} m, " +
+        $"Tyre health: {result.TyreHealthBefore:0.0000} -> {result.TyreHealthAfter:0.0000}");
+}

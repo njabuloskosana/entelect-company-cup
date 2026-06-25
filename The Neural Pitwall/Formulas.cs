@@ -31,6 +31,16 @@ public static class Formulas
         return degradedUsed;
     }
 
+    public static double BrakingDistance(double initialSpeedMps, double finalSpeedMps, double brakeMSe2)
+    {
+        if (brakeMSe2 <= 0 || initialSpeedMps <= finalSpeedMps)
+        {
+            return 0;
+        }
+
+        return (initialSpeedMps * initialSpeedMps - finalSpeedMps * finalSpeedMps) / (2 * brakeMSe2);
+    }
+
     public static double TyreFriction(double baseFrictionCoef, double tyreDeg, double weatherMuliplier)
     {
         // Simplified formula for tyre friction based on compound, temperature, and pressure
@@ -65,6 +75,8 @@ public static class Formulas
         double refuelTime = fuelAmount / fuelRefillRate;
         return refuelTime;
     }
+
+    
 
 
 }
