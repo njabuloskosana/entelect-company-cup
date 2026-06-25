@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("The Neural Pitwall")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8c0a5b577fee0086c4cb796e6a7bc58c99f14406")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0e07f2aead02a53a7449e92301b0c68b867ef46c")]
 [assembly: System.Reflection.AssemblyProductAttribute("The Neural Pitwall")]
 [assembly: System.Reflection.AssemblyTitleAttribute("The Neural Pitwall")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

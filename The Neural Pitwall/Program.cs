@@ -19,7 +19,7 @@ var config = RaceConfig.FromDto(dto);
 var selectedCompound = config.Tyres.ByName["Soft"];
 var carState = CarState.CreateInitial(config.Car, selectedCompound);
 var actionBuffer = new ActionBuffer();
-var strategy = new MaximizingCornerSpeed();
+var strategy = new basicBraking();
 
 /*
 Console.WriteLine("=== Race Config Loaded ===");
@@ -104,24 +104,38 @@ foreach (var result in strategyResults)
 }
 */
 // Build submission
+var strategyResults = strategy.Execute(carState, config, selectedCompound);
+
 var initialTyreSet = config.AvailableSets.Count > 0 ? config.AvailableSets[0] : null;
+var strategyResultsByLap = strategyResults
+    .GroupBy(result => result.Lap)
+    .ToDictionary(group => group.Key, group => group.OrderBy(result => result.SegmentId).ToList());
+
 var submission = new RaceSubmission
 {
     InitialTyreId = initialTyreSet is not null && initialTyreSet.Ids.Count > 0 ? initialTyreSet.Ids[0] : 1,
-    Laps = [.. Enumerable.Range(1, config.Race.Laps).Select(lapNumber => new LapSubmission
+    Laps = [.. Enumerable.Range(1, config.Race.Laps).Select(lapNumber =>
     {
-        Lap = lapNumber,
-        Segments = [.. config.Track.Segments.Select(segment => new SegmentSubmission
+        var lapResults = strategyResultsByLap.TryGetValue(lapNumber, out var resultsForLap)
+            ? resultsForLap
+            : [];
+
+        return new LapSubmission
         {
-            Id = segment.Id,
-            Type = segment.Type,
-            TargetMps = segment.IsCorner ? null : config.Car.MaxSpeedMps,
-            BrakeStartMBeforeNext = segment.IsCorner ? null
-                : (segment.NextCorner is not null
-                    ? TrackManager.GetBrakingDistanceM(config.Car.MaxSpeedMps, segment.NextCorner.MaxCornerSpeedMps ?? 0, config.Car.BrakeMSe2)
-                    : 0)
-        })],
-        Pit = new PitSubmission { Enter = false }
+            Lap = lapNumber,
+            Segments = [.. lapResults.Select(result => new SegmentSubmission
+            {
+                Id = result.SegmentId,
+                Type = result.SegmentType,
+                TargetMps = result.SegmentType.Equals("corner", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : result.TargetSpeedMps,
+                BrakeStartMBeforeNext = result.SegmentType.Equals("corner", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : result.BrakingDistanceM
+            })],
+            Pit = new PitSubmission { Enter = false }
+        };
     })]
 };
 
