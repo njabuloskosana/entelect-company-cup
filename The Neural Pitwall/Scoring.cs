@@ -19,7 +19,7 @@ public static class Scoring
     public static double TyreBonus(double tyreDegradation, double numberOfBLowouts)
     {
         // Simplified formula for tyre bonus based on tyre degradation and soft cap limit
-        double bonus = 100000* ); // Bonus decreases as tyre degradation approaches the soft cap limit
+        double bonus = 100000 * tyreDegradation - 50000 * numberOfBLowouts; // Bonus decreases as tyre degradation approaches the soft cap limit
         return bonus;
     }
 
